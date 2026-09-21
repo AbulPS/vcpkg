@@ -25,16 +25,32 @@ list(APPEND NMAKE_OPTIONS
     EXT_FEATURE_FLAGS=-DSQLITE_TEMP_STORE=2\ -DSQLITE_HAS_CODEC
 )
 
+if(TARGET_TRIPLET MATCHES "arm64-windows")
+    find_program(HOST_CL cl.exe PATHS "C:/Program Files/Microsoft Visual Studio/2022/Community/VC/Tools/MSVC/14.44.35207/bin/Hostx64/x64" NO_DEFAULT_PATH)
+    if(HOST_CL)
+        file(TO_NATIVE_PATH "${HOST_CL}" HOST_CL_NATIVE)
+        list(APPEND NMAKE_OPTIONS "NCC=\"${HOST_CL_NATIVE}\"" XCOMPILE=1)
+    endif()
+endif()
+
 set(ENV{INCLUDE} "${CURRENT_INSTALLED_DIR}/include;$ENV{INCLUDE}")
 
 # Creating amalgamation files
 message(STATUS "Pre-building ${TARGET_TRIPLET}")
-vcpkg_execute_required_process(
-    COMMAND ${NMAKE} -f Makefile.msc /A /NOLOGO clean sqlite3.c
-    ${NMAKE_OPTIONS}
-    WORKING_DIRECTORY "${SOURCE_PATH}"
-    LOGNAME pre-build-${TARGET_TRIPLET}
-)
+if(TARGET_TRIPLET MATCHES "arm64-windows" AND EXISTS "${VCPKG_ROOT_DIR}/sqlcipher-amalgamation/sqlite3.c")
+    message(STATUS "Using pre-generated SQLCipher amalgamation for ARM64 cross-compilation")
+    file(COPY "${VCPKG_ROOT_DIR}/sqlcipher-amalgamation/sqlite3.c" DESTINATION "${SOURCE_PATH}")
+    file(COPY "${VCPKG_ROOT_DIR}/sqlcipher-amalgamation/sqlite3.h" DESTINATION "${SOURCE_PATH}")
+    file(COPY "${VCPKG_ROOT_DIR}/sqlcipher-amalgamation/sqlite3ext.h" DESTINATION "${SOURCE_PATH}")
+    file(COPY "${VCPKG_ROOT_DIR}/sqlcipher-amalgamation/shell.c" DESTINATION "${SOURCE_PATH}")
+else()
+    vcpkg_execute_required_process(
+        COMMAND ${NMAKE} -f Makefile.msc /A /NOLOGO clean sqlite3.c
+        ${NMAKE_OPTIONS}
+        WORKING_DIRECTORY "${SOURCE_PATH}"
+        LOGNAME pre-build-${TARGET_TRIPLET}
+    )
+endif()
 message(STATUS "Pre-building ${TARGET_TRIPLET} done")
 
 # The rest of the build process with the CMakeLists.txt is merely a copy of sqlite3
